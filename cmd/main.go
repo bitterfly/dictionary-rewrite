@@ -8,5 +8,5 @@ func main() {
 	t := transducer.NewTransducer([]rune{'a', 'b', 'c'}, dict)
 	t.Print()
 
-	fmt.Printf(fmt.Sprintf("%s\n", t.Replace([]rune("d"))))
+	fmt.Printf(fmt.Sprintf("%s\n", t.Replace([]rune("abd"))))
 }
