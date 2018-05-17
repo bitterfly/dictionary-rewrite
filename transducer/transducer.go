@@ -25,9 +25,6 @@ type Transition struct {
 type OutputString struct {
 	s1, s2 int
 }
-ring struct {
-	os1, os2 int
-}
 
 // Node is the node in the ftransducer
 type Node struct {
@@ -61,9 +58,9 @@ func (n *Node) processWord(word []rune) *Node {
 // then we traverse the trie with BFS
 type Transducer struct {
 	q0      *Node
-	alphabet []char
+	alphabet []rune
 	outputs []string
-	otuputStrings []OutputString
+	outputStrings []OutputString
 }
 
 func (t *Transducer) Print() {
@@ -79,36 +76,36 @@ func (t *Transducer) newOutputStringEpsilon()int {
 }
 
 func (t *Transducer) newOutputStringFromChar(r rune) int {
-	t.otuputStrings = append(t.outputStrings, &OutputString{s1=int(r), s2=-1)
-	return len(t.OutputStrings) -1
+	t.outputStrings = append(t.outputStrings, OutputString{s1:int(r), s2:-1})
+	return len(t.outputStrings) -1
 }
 
 func (t *Transducer) newOutputStringFromString(s string) int {
 	t.outputs = append(t.outputs, s)
-	t.otuputStrings = append(t.outputStrings, &OutputString{s1=-1, s2=len(t.outputs) - 1})
-	return len(t.OutputStrings) -1
+	t.outputStrings = append(t.outputStrings, OutputString{s1:-1, s2:len(t.outputs) - 1})
+	return len(t.outputStrings) -1
 }
 
 func (t *Transducer) newOutputStringConcatenate(s1, s2 int) int {
-	t.otuputStrings = append(t.outputStrings, &OutputString{s1=s1, s2=s2)
-	return len(t.OutputStrings) -1	
+	t.outputStrings = append(t.outputStrings, OutputString{s1:s1, s2:s2})
+	return len(t.outputStrings) -1	
 }
 
 func (t *Transducer) getOutputString(s int) string {
-	os := t.OutputString[s]
+	os := t.outputStrings[s]
 	if os.s1 == -1 && os.s2 == -1 {
 		return "ε"
 	}
 
 	if os.s1 == -1 && os.s2 != -1 {
-		return t.outputs[s1]
+		return t.outputs[os.s1]
 	}
 
 	if os.s1 != -1 && os.s2 == -1 {
-		return rune(os.s1)
+		return string(rune(os.s1))
 	}
 
-	return t.printOutputString(os.s1) + t.printOutputString(os.s2)
+	return t.getOutputString(os.s1) + t.getOutputString(os.s2)
 }
 
 func (t *Transducer) print(n *Node) {
@@ -153,7 +150,7 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 
 	//Make the blank output string to be the first
 	outputStrings := make([]OutputString, 1)
-	outputStrings[0] := &OutputString{s1=-1, s2=-1}
+	outputStrings[0] = OutputString{s1:-1, s2:-1}
 	
 
 	for input, output := range dictionary {
@@ -215,7 +212,7 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 		}
 	}
 
-	t := &Transducer{q0, outputs}
+	t := &Transducer{q0:q0, alphabet:alphabet, outputs:outputs, outputStrings:outputStrings}
 	return t
 }
 
