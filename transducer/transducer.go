@@ -94,21 +94,21 @@ func (t *Transducer) newOutputStringConcatenate(s1, s2 int) int {
 	return len(t.OutputStrings) -1	
 }
 
-func (t *Transducer) printOutputString(s int) {
+func (t *Transducer) getOutputString(s int) string {
 	os := t.OutputString[s]
 	if os.s1 == -1 && os.s2 == -1 {
-		fmt.Printf("ε\n")
-		return
+		return "ε"
 	}
 
 	if os.s1 == -1 && os.s2 != -1 {
-		fmt.Printf(t.outputs[s1])
-		return
+		return t.outputs[s1]
 	}
 
-	if os.
+	if os.s1 != -1 && os.s2 == -1 {
+		return rune(os.s1)
+	}
 
-
+	return t.printOutputString(os.s1) + t.printOutputString(os.s2)
 }
 
 func (t *Transducer) print(n *Node) {
