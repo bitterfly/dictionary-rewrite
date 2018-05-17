@@ -2,11 +2,9 @@ package transducer
 
 import "fmt"
 
-var CHECK map[string]int = map[string]int{}
-
 // FTransition is the unique fail transition of each state if the delta function is undefined in the trie
 type FTransition struct {
-	failWord string
+	failWord int
 	state    *Node
 }
 
@@ -29,7 +27,7 @@ type OutputString struct {
 // Node is the node in the ftransducer
 type Node struct {
 	transitions map[Transition]*Node
-	output      *string
+	output      int
 	fTransition *FTransition
 }
 
@@ -46,6 +44,7 @@ func (n *Node) processWord(word []rune) *Node {
 
 	if _, ok := n.transitions[transition]; !ok {
 		node := NewNode()
+		n.output = -1
 		n.transitions[transition] = node
 		return node.processWord(word[1:])
 	} else {
@@ -111,16 +110,16 @@ func (t *Transducer) getOutputString(s int) string {
 func (t *Transducer) print(n *Node) {
 	for transition, destination := range n.transitions {
 		if transition.fromTrie {
-			if destination.output == nil {
+			if destination.output == -1 {
 				fmt.Printf("%p --- %c:ε ---> %p\n", n, transition.letter, destination)
 			} else {
-				fmt.Printf("%p --- (%c:ε)[%s] ---> %p\n", n, transition.letter, *(destination.output), destination)
+				fmt.Printf("%p --- (%c:ε)[%s] ---> %p\n", n, transition.letter, t.getOutputString(destination.output), destination)
 			}
 		} else {
-			if destination.output == nil {
+			if destination.output == -1 {
 				fmt.Printf("%p --- %c:%c ---> %p\n", n, transition.letter, transition.letter, destination)
 			} else {
-				fmt.Printf("%p --- (%c:%c)[%s] ---> %p\n", n, transition.letter, transition.letter, *(destination.output), destination)
+				fmt.Printf("%p --- (%c:%c)[%s] ---> %p\n", n, transition.letter, transition.letter, t.getOutputString(destination.output), destination)
 			}
 		}
 		if destination != n {
@@ -129,49 +128,46 @@ func (t *Transducer) print(n *Node) {
 	}
 }
 
-func (n *Node) walkTransitions(letter rune) (*Node, string) {
+func (n *Node) walkTransitions(letter rune) (*Node, int) {
 	if destination, ok := n.transitions[Transition{letter, true}]; ok {
-		return destination, ""
+		// return epsilon outputString
+		return destination, 0
 	}
 
 	if destination, ok := n.transitions[Transition{letter, false}]; ok {
-		return destination, string(letter)
+		return destination, t.newOutputStringFromChar(letter)
 	
 	}
 
 	fstate, fword := n.fTransition.state.walkTransitions(letter)
 	
-	return fstate, fword + n.fTransition.failWord
+	return fstate, t.newOutputStringConcatenate(fword, n.fTransition.failWord)
 }
 
 func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
-	q0 := NewNode()
-	outputs := make([]string, 0, len(dictionary))
-
-	//Make the blank output string to be the first
-	outputStrings := make([]OutputString, 1)
-	outputStrings[0] = OutputString{s1:-1, s2:-1}
+	t := &Transducer{q0:NewNode(), alphabet:alphabet, outputs: make([]string, 0, len(dictionary)), outputStrings:make([]OutputString, 1)}
 	
+	//Make the blank output string to be the first
+	t.outputStrings[0] = OutputString{s1:-1, s2:-1}
 
 	for input, output := range dictionary {
-		lastState := q0.processWord([]rune(input))
-		outputs = append(outputs, output)
-		lastState.output = &(outputs[len(outputs)-1])
-		fmt.Printf("Appending output: %s\n", *(lastState.output))	
+		lastState := t.q0.processWord([]rune(input))
+		lastState.output = t.newOutputStringFromString(output)
+		fmt.Printf("Appending output: %s\n", t.getOutputString(lastState.output))	
 	}
 
 
 	// Put all reachable states from q1 in the queue and make their failtransition q0
-	queue := make([]*Node, 0, len(q0.transitions))
+	queue := make([]*Node, 0, len(t.q0.transitions))
 	
-	for transition, node := range q0.transitions {
-		if node.output != nil {
-			node.fTransition = &FTransition{state: q0, failWord: *(node.output)}
-			fmt.Printf("Adding fail transition from %p to %p with %s\n", node, q0, *(node.output))
+	for transition, node := range t.q0.transitions {
+		if node.output != -1 {
+			node.fTransition = &FTransition{state: t.q0, failWord: node.output}
+			fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(node.output))
 
 		} else {
-			node.fTransition = &FTransition{state: q0, failWord: string(transition.letter)}	
-			fmt.Printf("Adding fail transition from %p to %p with %s\n", node, q0, string(transition.letter))
+			node.fTransition = &FTransition{state: t.q0, failWord: t.newOutputStringFromChar(transition.letter)}	
+			fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(transition.letter))
 		
 		}
 
@@ -180,9 +176,10 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 
 
 	// Loop q0 with every missing letter in the alphabet
-	for _, letter := range alphabet {
-		if _, ok := q0.transitions[Transition{letter, true}]; !ok {
-			q0.transitions[Transition{letter, false}] = q0
+	// TODO: Remove this and check if state is q0
+	for _, letter := range t.alphabet {
+		if _, ok := t.q0.transitions[Transition{letter, true}]; !ok {
+			t.q0.transitions[Transition{letter, false}] = t.q0
 		}
 	}
 
@@ -194,25 +191,23 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 		queue = queue[1:]
 		for transition, destination := range current.transitions {
 			// fmt.Printf(fmt.Sprintf("Looking up transition (%p, %c)\n", destination, transition.letter))
-			if destination.output != nil {
+			if destination.output != -1 {
 				// fmt.Printf(fmt.Sprintf("Putting failword: %s\n", *(destination.output)))
-				destination.fTransition = &FTransition{state: q0, failWord: *(destination.output)}
-				CHECK[*(destination.output)] += 1
+				destination.fTransition = &FTransition{state: q0, failWord: destination.output}
 			} else {
 				fmt.Printf("Walking back from %p with letter %c\n", current.fTransition.state, transition.letter)
+				
 				fstate, fword := current.fTransition.state.walkTransitions(transition.letter)
 				
-				fmt.Printf("This is state %p with word %s\n", fstate, current.fTransition.failWord + fword)
-				fmt.Printf("Adding fail transition from %p to %p with %s\n", destination, fstate, current.fTransition.failWord + fword)
+				fmt.Printf("This is state %p with word %s\n", fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
+				fmt.Printf("Adding fail transition from %p to %p with %s\n", destination, fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
 				
-				destination.fTransition = &FTransition{state: fstate, failWord: current.fTransition.failWord + fword}
-				CHECK[current.fTransition.failWord + fword] += 1
+				destination.fTransition = &FTransition{state: fstate, failWord: t.newOutputStringConcatenate(current.fTransition.failWord, fword)}
 			}
 			queue = append(queue, destination)
 		}
 	}
 
-	t := &Transducer{q0:q0, alphabet:alphabet, outputs:outputs, outputStrings:outputStrings}
 	return t
 }
 
