@@ -32,7 +32,7 @@ type Node struct {
 }
 
 func NewNode() *Node {
-	return &Node{transitions: make(map[Transition]*Node), output: nil, fTransition: nil}
+	return &Node{transitions: make(map[Transition]*Node), output: -1, fTransition: nil}
 }
 
 func (n *Node) processWord(word []rune) *Node {
@@ -44,7 +44,6 @@ func (n *Node) processWord(word []rune) *Node {
 
 	if _, ok := n.transitions[transition]; !ok {
 		node := NewNode()
-		n.output = -1
 		n.transitions[transition] = node
 		return node.processWord(word[1:])
 	} else {
@@ -63,10 +62,6 @@ type Transducer struct {
 }
 
 func (t *Transducer) Print() {
-	fmt.Printf("Map: \n")
-	for k, v := range CHECK {
-		fmt.Printf("%s - %d\n", k, v)
-	}
 	t.print(t.q0)
 }
 
@@ -97,7 +92,7 @@ func (t *Transducer) getOutputString(s int) string {
 	}
 
 	if os.s1 == -1 && os.s2 != -1 {
-		return t.outputs[os.s1]
+		return t.outputs[os.s2]
 	}
 
 	if os.s1 != -1 && os.s2 == -1 {
@@ -128,7 +123,7 @@ func (t *Transducer) print(n *Node) {
 	}
 }
 
-func (n *Node) walkTransitions(letter rune) (*Node, int) {
+func (t *Transducer) walkTransitions(n *Node, letter rune) (*Node, int) {
 	if destination, ok := n.transitions[Transition{letter, true}]; ok {
 		// return epsilon outputString
 		return destination, 0
@@ -139,7 +134,7 @@ func (n *Node) walkTransitions(letter rune) (*Node, int) {
 	
 	}
 
-	fstate, fword := n.fTransition.state.walkTransitions(letter)
+	fstate, fword := t.walkTransitions(n.fTransition.state, letter)
 	
 	return fstate, t.newOutputStringConcatenate(fword, n.fTransition.failWord)
 }
@@ -167,7 +162,7 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 
 		} else {
 			node.fTransition = &FTransition{state: t.q0, failWord: t.newOutputStringFromChar(transition.letter)}	
-			fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(transition.letter))
+			fmt.Printf("Adding fail transition from %p to %p with %c\n", node, t.q0, transition.letter)
 		
 		}
 
@@ -193,11 +188,11 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 			// fmt.Printf(fmt.Sprintf("Looking up transition (%p, %c)\n", destination, transition.letter))
 			if destination.output != -1 {
 				// fmt.Printf(fmt.Sprintf("Putting failword: %s\n", *(destination.output)))
-				destination.fTransition = &FTransition{state: q0, failWord: destination.output}
+				destination.fTransition = &FTransition{state: t.q0, failWord: destination.output}
 			} else {
 				fmt.Printf("Walking back from %p with letter %c\n", current.fTransition.state, transition.letter)
 				
-				fstate, fword := current.fTransition.state.walkTransitions(transition.letter)
+				fstate, fword := t.walkTransitions(current.fTransition.state, transition.letter)
 				
 				fmt.Printf("This is state %p with word %s\n", fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
 				fmt.Printf("Adding fail transition from %p to %p with %s\n", destination, fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
@@ -212,33 +207,33 @@ func NewTransducer(alphabet []rune, dictionary map[string]string) *Transducer {
 }
 
 func (t *Transducer) Replace(word []rune) string {
-	return t.q0.replace(word)
+	return t.replace(t.q0, word)
 }
 
-func (n *Node) replace(word []rune) string {
+func (t *Transducer) replace(n *Node, word []rune) string {
 	if len(word) == 0 {
 		if n.fTransition == nil {
 			fmt.Printf("End\n")
 			return ""
 		} else {
-			fmt.Printf("Adding end fail word: %s\n", n.fTransition.failWord)
-			return n.fTransition.failWord + n.fTransition.state.replace(word)
+			fmt.Printf("Adding end fail word: %s\n", t.getOutputString(n.fTransition.failWord))
+			return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
 		}
 	}
 
 	if destination, ok := n.transitions[Transition{word[0], true}]; ok {
 		fmt.Printf("Adding from trie (letter %c)\n", word[0])
-		return destination.replace(word[1:])
+		return t.replace(destination, word[1:])
 	}
 
 	if destination, ok := n.transitions[Transition{word[0], false}]; ok {
 		fmt.Printf("Adding from extra %c\n", word[0])
 	
-		return string(word[0]) + destination.replace(word[1:])
+		return string(word[0]) + t.replace(destination, word[1:])
 	}
 
-	fmt.Printf("Adding fail word %s with letter %c\n", n.fTransition.failWord, word[0])
+	fmt.Printf("Adding fail word %s with letter %c\n", t.getOutputString(n.fTransition.failWord), word[0])
 
-	return n.fTransition.failWord + n.fTransition.state.replace(word)
+	return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
 }
 
