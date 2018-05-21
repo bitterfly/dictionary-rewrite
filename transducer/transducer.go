@@ -78,6 +78,31 @@ func (t *Transducer) newOutputStringConcatenate(s1, s2 int) int {
 	return len(t.outputStrings) - 1
 }
 
+func (t *Transducer) processOutputString(s int, output *bufio.Writer) error {
+	var err error
+	os := t.outputStrings[s]
+	if os.s1 == -1 && os.s2 == -1 {
+		return nil
+	}
+
+	if os.s1 == -1 && os.s2 != -1 {
+		output.WriteString(t.outputs[os.s2])
+		return nil
+	}
+
+	if os.s1 != -1 && os.s2 == -1 {
+		output.WriteRune(rune(os.s1))
+		return nil
+	}
+
+	err = t.processOutputString(os.s1, output)
+	if err != nil {
+		return err
+	}
+	err = t.processOutputString(os.s2, output)
+	return err
+}
+
 func (t *Transducer) getOutputString(s int) string {
 	os := t.outputStrings[s]
 	if os.s1 == -1 && os.s2 == -1 {
@@ -120,10 +145,12 @@ func (t *Transducer) walkTransitions(n *Node, letter rune) (*Node, int) {
 	return fstate, t.newOutputStringConcatenate(fword, n.fTransition.failWord)
 }
 
+// DictionaryRecord is used for reading the dictionary in a channel
 type DictionaryRecord struct {
 	Input, Output string
 }
 
+// NewTransducer returns a fail transducer from the given dictionary
 func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	t := &Transducer{q0: NewNode(), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1)}
 
@@ -213,8 +240,7 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 			continue
 		}
 
-		fmt.Printf("Writing %s\n", t.getOutputString(node.fTransition.failWord))
-		_, err = outputBuf.WriteString(t.getOutputString(node.fTransition.failWord))
+		err = t.processOutputString(node.fTransition.failWord, outputBuf)
 		if err != nil {
 			return err
 		}
@@ -225,17 +251,17 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 		}
 	}
 
-	err = t.FollowTransitions(node, outputBuf)
+	err = t.followTransitions(node, outputBuf)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (t *Transducer) FollowTransitions(n *Node, output *bufio.Writer) error {
+func (t *Transducer) followTransitions(n *Node, output *bufio.Writer) error {
 	var err error
 	for n != t.q0 {
-		_, err = output.WriteString(t.getOutputString(n.fTransition.failWord))
+		err = t.processOutputString(n.fTransition.failWord, output)
 		if err != nil {
 			return err
 		}
@@ -243,29 +269,3 @@ func (t *Transducer) FollowTransitions(n *Node, output *bufio.Writer) error {
 	}
 	return nil
 }
-
-// func (t *Transducer) replace(n *Node, word []rune) string {
-// 	if len(word) == 0 {
-// 		if n.fTransition == nil {
-// 			// fmt.Printf("End\n")
-// 			return ""
-// 		} else {
-// 			// fmt.Printf("Adding end fail word: %s\n", t.getOutputString(n.fTransition.failWord))
-// 			return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
-// 		}
-// 	}
-
-// 	if destination, ok := n.transitions[word[0]]; ok {
-// 		// fmt.Printf("Adding from trie (letter %c)\n", word[0])
-// 		return t.replace(destination, word[1:])
-// 	}
-
-// 	if n == t.q0 {
-// 		// fmt.Printf("Adding from extra %c\n", word[0])
-// 		return string(word[0]) + t.replace(n, word[1:])
-// 	}
-
-// 	// fmt.Printf("Adding fail word %s with letter %c\n", t.getOutputString(n.fTransition.failWord), word[0])
-
-// 	return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
-// }
