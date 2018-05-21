@@ -1,6 +1,10 @@
 package transducer
 
-import "fmt"
+import (
+	"bufio"
+	"fmt"
+	"io"
+)
 
 // FTransition is the unique fail transition of each state if the delta function is undefined in the trie
 type FTransition struct {
@@ -11,7 +15,7 @@ type FTransition struct {
 // if s1 == -1 and s2 == -1 -> OutputString encodes epsilon
 // if s1 != -1 and s2 == -1 -> OutputString encodes an unicode in s1
 // if s1 == -1 and s2 != -1 -> OutputString encodes an index of a string in outputs array
-// if s1 != -1 and s2 != -1 -> OutputString encodes two other output strings   
+// if s1 != -1 and s2 != -1 -> OutputString encodes two other output strings
 type OutputString struct {
 	s1, s2 int
 }
@@ -45,8 +49,8 @@ func (n *Node) processWord(word []rune) *Node {
 // first we make a trie from the dictionary
 // then we traverse the trie with BFS
 type Transducer struct {
-	q0      *Node
-	outputs []string
+	q0            *Node
+	outputs       []string
 	outputStrings []OutputString
 }
 
@@ -54,24 +58,24 @@ func (t *Transducer) Print() {
 	t.print(t.q0)
 }
 
-func (t *Transducer) newOutputStringEpsilon()int {
+func (t *Transducer) newOutputStringEpsilon() int {
 	return 0
 }
 
 func (t *Transducer) newOutputStringFromChar(r rune) int {
-	t.outputStrings = append(t.outputStrings, OutputString{s1:int(r), s2:-1})
-	return len(t.outputStrings) -1
+	t.outputStrings = append(t.outputStrings, OutputString{s1: int(r), s2: -1})
+	return len(t.outputStrings) - 1
 }
 
 func (t *Transducer) newOutputStringFromString(s string) int {
 	t.outputs = append(t.outputs, s)
-	t.outputStrings = append(t.outputStrings, OutputString{s1:-1, s2:len(t.outputs) - 1})
-	return len(t.outputStrings) -1
+	t.outputStrings = append(t.outputStrings, OutputString{s1: -1, s2: len(t.outputs) - 1})
+	return len(t.outputStrings) - 1
 }
 
 func (t *Transducer) newOutputStringConcatenate(s1, s2 int) int {
-	t.outputStrings = append(t.outputStrings, OutputString{s1:s1, s2:s2})
-	return len(t.outputStrings) -1	
+	t.outputStrings = append(t.outputStrings, OutputString{s1: s1, s2: s2})
+	return len(t.outputStrings) - 1
 }
 
 func (t *Transducer) getOutputString(s int) string {
@@ -112,7 +116,7 @@ func (t *Transducer) walkTransitions(n *Node, letter rune) (*Node, int) {
 	}
 
 	fstate, fword := t.walkTransitions(n.fTransition.state, letter)
-	
+
 	return fstate, t.newOutputStringConcatenate(fword, n.fTransition.failWord)
 }
 
@@ -121,30 +125,29 @@ type DictionaryRecord struct {
 }
 
 func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
-	t := &Transducer{q0:NewNode(),outputs: make([]string, 0, 1), outputStrings:make([]OutputString, 1)}
-	
+	t := &Transducer{q0: NewNode(), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1)}
+
 	//Make the blank output string to be the first
-	t.outputStrings[0] = OutputString{s1:-1, s2:-1}
+	t.outputStrings[0] = OutputString{s1: -1, s2: -1}
 
 	for record := range dictionary {
 		lastState := t.q0.processWord([]rune(record.Input))
 		lastState.output = t.newOutputStringFromString(record.Output)
-		// fmt.Printf("Appending output: %s\n", t.getOutputString(lastState.output))	
+		// fmt.Printf("Appending output: %s\n", t.getOutputString(lastState.output))
 	}
-
 
 	// Put all reachable states from q1 in the queue and make their failtransition q0
 	queue := make([]*Node, 0, len(t.q0.transitions))
-	
+
 	for letter, node := range t.q0.transitions {
 		if node.output != -1 {
 			node.fTransition = &FTransition{state: t.q0, failWord: node.output}
 			// fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(node.output))
 
 		} else {
-			node.fTransition = &FTransition{state: t.q0, failWord: t.newOutputStringFromChar(letter)}	
+			node.fTransition = &FTransition{state: t.q0, failWord: t.newOutputStringFromChar(letter)}
 			// fmt.Printf("Adding fail transition from %p to %p with %c\n", node, t.q0, letter)
-		
+
 		}
 
 		queue = append(queue, node)
@@ -162,12 +165,12 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 				destination.fTransition = &FTransition{state: t.q0, failWord: destination.output}
 			} else {
 				// fmt.Printf("Walking back from %p with letter %c\n", current.fTransition.state, letter)
-				
+
 				fstate, fword := t.walkTransitions(current.fTransition.state, letter)
-				
+
 				// fmt.Printf("This is state %p with word %s\n", fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
 				// fmt.Printf("Adding fail transition from %p to %p with %s\n", destination, fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
-				
+
 				destination.fTransition = &FTransition{state: fstate, failWord: t.newOutputStringConcatenate(current.fTransition.failWord, fword)}
 			}
 			queue = append(queue, destination)
@@ -177,33 +180,92 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	return t
 }
 
-func (t *Transducer) Replace(word []rune) string {
-	return t.replace(t.q0, word)
-}
+func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
+	var err error
+	inputBuf := bufio.NewReader(input)
+	outputBuf := bufio.NewWriter(output)
 
-func (t *Transducer) replace(n *Node, word []rune) string {
-	if len(word) == 0 {
-		if n.fTransition == nil {
-			// fmt.Printf("End\n")
-			return ""
-		} else {
-			// fmt.Printf("Adding end fail word: %s\n", t.getOutputString(n.fTransition.failWord))
-			return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
+	defer outputBuf.Flush()
+	node := t.q0
+
+	for {
+		letter, _, err := inputBuf.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				break
+			} else {
+				return err
+			}
+		}
+
+		if destination, ok := node.transitions[letter]; ok {
+			node = destination
+			continue
+		}
+
+		if node == t.q0 {
+			fmt.Printf("Writing %c\n", letter)
+			_, err = outputBuf.WriteRune(letter)
+			if err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		fmt.Printf("Writing %s\n", t.getOutputString(node.fTransition.failWord))
+		_, err = outputBuf.WriteString(t.getOutputString(node.fTransition.failWord))
+		if err != nil {
+			return err
+		}
+		node = node.fTransition.state
+		err = inputBuf.UnreadRune()
+		if err != nil {
+			return err
 		}
 	}
 
-	if destination, ok := n.transitions[word[0]]; ok {
-		// fmt.Printf("Adding from trie (letter %c)\n", word[0])
-		return t.replace(destination, word[1:])
+	err = t.FollowTransitions(node, outputBuf)
+	if err != nil {
+		return err
 	}
-
-	if n == t.q0{
-		// fmt.Printf("Adding from extra %c\n", word[0])
-		return string(word[0]) + t.replace(n, word[1:])
-	}
-
-	// fmt.Printf("Adding fail word %s with letter %c\n", t.getOutputString(n.fTransition.failWord), word[0])
-
-	return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
+	return nil
 }
 
+func (t *Transducer) FollowTransitions(n *Node, output *bufio.Writer) error {
+	var err error
+	for n != t.q0 {
+		_, err = output.WriteString(t.getOutputString(n.fTransition.failWord))
+		if err != nil {
+			return err
+		}
+		n = n.fTransition.state
+	}
+	return nil
+}
+
+// func (t *Transducer) replace(n *Node, word []rune) string {
+// 	if len(word) == 0 {
+// 		if n.fTransition == nil {
+// 			// fmt.Printf("End\n")
+// 			return ""
+// 		} else {
+// 			// fmt.Printf("Adding end fail word: %s\n", t.getOutputString(n.fTransition.failWord))
+// 			return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
+// 		}
+// 	}
+
+// 	if destination, ok := n.transitions[word[0]]; ok {
+// 		// fmt.Printf("Adding from trie (letter %c)\n", word[0])
+// 		return t.replace(destination, word[1:])
+// 	}
+
+// 	if n == t.q0 {
+// 		// fmt.Printf("Adding from extra %c\n", word[0])
+// 		return string(word[0]) + t.replace(n, word[1:])
+// 	}
+
+// 	// fmt.Printf("Adding fail word %s with letter %c\n", t.getOutputString(n.fTransition.failWord), word[0])
+
+// 	return t.getOutputString(n.fTransition.failWord) + t.replace(n.fTransition.state, word)
+// }

@@ -1,9 +1,12 @@
 package main
 
-import "local/ftransducer/transducer"
-import "fmt"
-import "encoding/json"
-import "os"
+import (
+	"encoding/json"
+	"fmt"
+	"local/ftransducer/transducer"
+	"os"
+	"strings"
+)
 
 func readJson(filename string) (map[string]string, error) {
 	f, err := os.Open(filename)
@@ -63,5 +66,6 @@ func main() {
 	dictChan := chanFromDict(dict)
 
 	t := transducer.NewTransducer(dictChan)
-	fmt.Printf("%s\n", t.Replace([]rune("penis gimp phalos penis")))
+	t.StreamReplace(strings.NewReader("let's 4make 6-pack.\n"), os.Stdout)
+	// fmt.Printf("%s\n", t.Replace([]rune("let's make 6-pack")))
 }
