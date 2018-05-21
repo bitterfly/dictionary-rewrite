@@ -207,6 +207,8 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	return t
 }
 
+// StreamReplace uses the transducer to replace dictionary words from the text from the input stream using the transducer
+// and writes the output into the output buffer
 func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 	var err error
 	inputBuf := bufio.NewReader(input)
@@ -231,7 +233,6 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 		}
 
 		if node == t.q0 {
-			fmt.Printf("Writing %c\n", letter)
 			_, err = outputBuf.WriteRune(letter)
 			if err != nil {
 				return err
