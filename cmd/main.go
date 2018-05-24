@@ -80,5 +80,5 @@ func main() {
 	dictChan := chanFromDict(dict)
 	t := transducer.NewTransducer(dictChan)
 
-	// t.StreamReplace(strings.NewReader("let's 4make 6-pack.\n"), os.Stdout)
+	t.StreamReplace(strings.NewReader("let's 4make 6-pack.\n"), os.Stdout)
 }
