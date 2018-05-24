@@ -12,6 +12,7 @@ type FTransition struct {
 	state    *Node
 }
 
+// OutputString describes the following:
 // if s1 == -1 and s2 == -1 -> OutputString encodes epsilon
 // if s1 != -1 and s2 == -1 -> OutputString encodes an unicode in s1
 // if s1 == -1 and s2 != -1 -> OutputString encodes an index of a string in outputs array
