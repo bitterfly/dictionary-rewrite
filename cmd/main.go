@@ -81,31 +81,4 @@ func main() {
 	t := transducer.NewTransducer(dictChan)
 
 	// t.StreamReplace(strings.NewReader("let's 4make 6-pack.\n"), os.Stdout)
-	ok, first, second := checkNaive(t, dict, "let's 4make 6-pack.\n")
-	if ok {
-		fmt.Printf("True\n")
-	} else {
-		fmt.Printf("Transducer:\n%s\nNaive:\n%s\n", first, second)
-	}
-
-	ok, first, second = checkNaive(t, dict, "What about the penis?\n")
-	if ok {
-		fmt.Printf("True\n")
-	} else {
-		fmt.Printf("Transducer:\n%s\nNaive:\n%s\n", first, second)
-	}
-
-	ok, first, second = checkNaive(t, dict, "123456\n")
-	if ok {
-		fmt.Printf("True\n")
-	} else {
-		fmt.Printf("Transducer:\n%s\nNaive:\n%s\n", first, second)
-	}
-
-	ok, first, second = checkNaive(t, dict, "Go go 5 3\n")
-	if ok {
-		fmt.Printf("True\n")
-	} else {
-		fmt.Printf("Transducer:\n%s\nNaive:\n%s\n", first, second)
-	}
 }

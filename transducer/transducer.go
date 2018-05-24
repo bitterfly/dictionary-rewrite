@@ -4,7 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
+	"time"
 )
+
+func timeTrack(start time.Time, name string) {
+	elapsed := time.Since(start)
+	log.Printf("%s took %s\n", name, elapsed)
+}
 
 // FTransition is the unique fail transition of each state if the delta function is undefined in the trie
 type FTransition struct {
@@ -153,6 +160,7 @@ type DictionaryRecord struct {
 
 // NewTransducer returns a fail transducer from the given dictionary
 func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
+	defer timeTrack(time.Now(), "NewTransducer")
 	t := &Transducer{q0: NewNode(), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1)}
 
 	//Make the blank output string to be the first
