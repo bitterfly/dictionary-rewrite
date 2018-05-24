@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"local/ftransducer/transducer"
 	"os"
 	"strings"
@@ -40,6 +41,22 @@ func checkNaive(t *transducer.Transducer, dict map[string]string, text string) (
 	buf := new(bytes.Buffer)
 	t.StreamReplace(strings.NewReader(text), buf)
 	return buf.String() == naiveReplace(dict, text), buf.String(), naiveReplace(dict, text)
+}
+
+func readPlain(filename string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		err = f.Close()
+	}()
+
+	text, err := ioutil.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+	return string(text), nil
 }
 
 func readJSON(filename string) (map[string]string, error) {
@@ -80,5 +97,18 @@ func main() {
 	dictChan := chanFromDict(dict)
 	t := transducer.NewTransducer(dictChan)
 
-	t.StreamReplace(strings.NewReader("let's 4make 6-pack.\n"), os.Stdout)
+	text, err := readPlain(os.Args[2])
+	if err != nil {
+		fmt.Printf("Could not read input text file")
+		os.Exit(1)
+	}
+
+	ok, first, second := checkNaive(t, dict, text)
+	if ok {
+		fmt.Printf("%t\n", ok)
+	} else {
+		fmt.Printf("%t\n%s\n====\n%s\n=====\n", ok, first, second)
+	}
+	// t.StreamReplace(strings.NewReader(text), os.Stdout)
+
 }
