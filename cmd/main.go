@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func naiveReplace(dict map[string]string, text string) string {
+func naiveReplace(dict map[string]string, text []rune) string {
 	i := 0
 	var outputText, currentText string
 	for i < len(text) {
@@ -18,8 +18,8 @@ func naiveReplace(dict map[string]string, text string) string {
 		j := i
 		for j <= len(text) {
 			// fmt.Printf("(i=%d, j=%d) Searching for string: %s\n", i, j, text[i:j])
-			if _, ok := dict[text[i:j]]; ok {
-				currentText = dict[text[i:j]]
+			if _, ok := dict[string(text[i:j])]; ok {
+				currentText = dict[string(text[i:j])]
 			}
 			j++
 		}
@@ -40,7 +40,8 @@ func naiveReplace(dict map[string]string, text string) string {
 func checkNaive(t *transducer.Transducer, dict map[string]string, text string) (bool, string, string) {
 	buf := new(bytes.Buffer)
 	t.StreamReplace(strings.NewReader(text), buf)
-	return buf.String() == naiveReplace(dict, text), buf.String(), naiveReplace(dict, text)
+	replaced := naiveReplace(dict, []rune(text))
+	return buf.String() == replaced, buf.String(), replaced
 }
 
 func readPlain(filename string) (string, error) {
