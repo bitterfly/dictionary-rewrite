@@ -97,6 +97,16 @@ func main() {
 	dictChan := chanFromDict(dict)
 	t := transducer.NewTransducer(dictChan)
 
+	f, err := os.Create("/tmp/graph.dot")
+	if err != nil {
+		os.Exit(1)
+	}
+	defer func() {
+		err = f.Close()
+	}()
+
+	t.Print(f)
+
 	text, err := readPlain(os.Args[2])
 	if err != nil {
 		fmt.Printf("Could not read input text file")

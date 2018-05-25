@@ -8,6 +8,24 @@ import (
 	"time"
 )
 
+func (t *Transducer) Print(writer io.Writer) {
+	fmt.Fprintf(writer, "digraph transducer {\n")
+	t.print(t.q0, writer)
+	fmt.Fprintf(writer, "}\n")
+}
+
+func (t *Transducer) print(n *Node, writer io.Writer) {
+	fmt.Fprintf(writer, "  p%p [label=\"\"];\n", n)
+
+	for letter, dest := range n.transitions {
+		fmt.Fprintf(writer, " \"%p\" -> \"%p\" [label=\"%c\"];\n", n, dest, letter)
+		if n.fTransition != nil {
+			fmt.Fprintf(writer, " \"%p\" -> \"%p\" [label=\"%s\",color=red];\n", n, n.fTransition.state, t.getOutputString(n.fTransition.failWord))
+		}
+		t.print(dest, writer)
+	}
+}
+
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Printf("%s took %s\n", name, elapsed)
@@ -62,10 +80,6 @@ type Transducer struct {
 	outputStrings []OutputString
 }
 
-func (t *Transducer) Print() {
-	t.print(t.q0)
-}
-
 func (t *Transducer) newOutputStringEpsilon() int {
 	return 0
 }
@@ -94,11 +108,13 @@ func (t *Transducer) processOutputString(s int, output *bufio.Writer) error {
 	}
 
 	if os.s1 == -1 && os.s2 != -1 {
+		// fmt.Printf("Writing output:|%s|\n", t.outputs[os.s2])
 		output.WriteString(t.outputs[os.s2])
 		return nil
 	}
 
 	if os.s1 != -1 && os.s2 == -1 {
+		// fmt.Printf("Writing output:|%c|\n", rune(os.s1))
 		output.WriteRune(rune(os.s1))
 		return nil
 	}
@@ -128,16 +144,6 @@ func (t *Transducer) getOutputString(s int) string {
 	return t.getOutputString(os.s1) + t.getOutputString(os.s2)
 }
 
-func (t *Transducer) print(n *Node) {
-	for letter, destination := range n.transitions {
-		if destination.output == -1 {
-			fmt.Printf("%p --- %c:ε ---> %p\n", n, letter, destination)
-		} else {
-			fmt.Printf("%p --- (%c:ε)[%s] ---> %p\n", n, letter, t.getOutputString(destination.output), destination)
-		}
-	}
-}
-
 func (t *Transducer) walkTransitions(n *Node, letter rune) (*Node, int) {
 	if destination, ok := n.transitions[letter]; ok {
 		// return epsilon outputString
@@ -150,7 +156,7 @@ func (t *Transducer) walkTransitions(n *Node, letter rune) (*Node, int) {
 
 	fstate, fword := t.walkTransitions(n.fTransition.state, letter)
 
-	return fstate, t.newOutputStringConcatenate(fword, n.fTransition.failWord)
+	return fstate, t.newOutputStringConcatenate(n.fTransition.failWord, fword)
 }
 
 // DictionaryRecord is used for reading the dictionary in a channel
@@ -230,6 +236,9 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 
 	for {
 		letter, _, err := inputBuf.ReadRune()
+		inputBuf.UnreadRune()
+		letter, _, err = inputBuf.ReadRune()
+		// fmt.Printf("Trying letter: %c\n", letter)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -244,6 +253,7 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 		}
 
 		if node == t.q0 {
+			// fmt.Printf("Failing with %c from q0 ->|%c|\n", letter, letter)
 			_, err = outputBuf.WriteRune(letter)
 			if err != nil {
 				return err
@@ -256,8 +266,10 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 		if err != nil {
 			return err
 		}
+
 		node = node.fTransition.state
 		err = inputBuf.UnreadRune()
+		// fmt.Printf("Unreading rune: %c\n", letter)
 		if err != nil {
 			return err
 		}
