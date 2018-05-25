@@ -15,7 +15,7 @@ func (t *Transducer) Print(writer io.Writer) {
 }
 
 func (t *Transducer) print(n *Node, writer io.Writer) {
-	fmt.Fprintf(writer, "  p%p [label=\"\"];\n", n)
+	fmt.Fprintf(writer, "  \"%p\" [label=\"\"];\n", n)
 
 	for letter, dest := range n.transitions {
 		fmt.Fprintf(writer, " \"%p\" -> \"%p\" [label=\"%c\"];\n", n, dest, letter)
