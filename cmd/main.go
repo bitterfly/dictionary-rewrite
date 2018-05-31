@@ -1,48 +1,15 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"local/ftransducer/transducer"
+	"log"
 	"os"
 	"strings"
 )
-
-func naiveReplace(dict map[string]string, text []rune) string {
-	i := 0
-	var outputText, currentText string
-	for i < len(text) {
-		// fmt.Printf("Current string: %s\nOutputString: %s\ni: %d\n=======\n", currentText, outputText, i)
-		j := i
-		for j <= len(text) {
-			// fmt.Printf("(i=%d, j=%d) Searching for string: %s\n", i, j, text[i:j])
-			if _, ok := dict[string(text[i:j])]; ok {
-				currentText = dict[string(text[i:j])]
-			}
-			j++
-		}
-
-		if currentText == "" {
-			outputText += string(text[i])
-			i++
-		} else {
-			outputText += currentText
-			i += len(currentText)
-		}
-
-		currentText = ""
-	}
-	return outputText
-}
-
-func checkNaive(t *transducer.Transducer, dict map[string]string, text string) (bool, string, string) {
-	buf := new(bytes.Buffer)
-	t.StreamReplace(strings.NewReader(text), buf)
-	replaced := naiveReplace(dict, []rune(text))
-	return buf.String() == replaced, buf.String(), replaced
-}
 
 func readPlain(filename string) (string, error) {
 	f, err := os.Open(filename)
@@ -89,24 +56,51 @@ func chanFromDict(dict map[string]string) chan transducer.DictionaryRecord {
 
 	return dictChan
 }
+
+func chanFromFile(filename string) (chan transducer.DictionaryRecord, error) {
+	dictChan := make(chan transducer.DictionaryRecord)
+	var err error
+	go func() {
+		f, err := os.Open(filename)
+		if err != nil {
+			return
+		}
+
+		defer func() {
+			err = f.Close()
+		}()
+
+		scanner := bufio.NewScanner(f)
+		scanner.Split(bufio.ScanLines)
+
+		i := 0
+
+		var dicWords []string
+		for scanner.Scan() {
+			if i%10000 == 0 {
+				log.Printf("%d ", i)
+			}
+			i++
+			dicWords = strings.SplitN(scanner.Text(), "\t", 2)
+			dictChan <- transducer.DictionaryRecord{Input: dicWords[0], Output: dicWords[1]}
+		}
+		close(dictChan)
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return dictChan, nil
+}
+
 func main() {
-	dict, err := readJSON(os.Args[1])
+	dictChan, err := chanFromFile(os.Args[1])
 	if err != nil {
 		fmt.Printf("Error reading file.")
 		os.Exit(1)
 	}
-	dictChan := chanFromDict(dict)
 	t := transducer.NewTransducer(dictChan)
-
-	f, err := os.Create("/tmp/graph.dot")
-	if err != nil {
-		os.Exit(1)
-	}
-	defer func() {
-		err = f.Close()
-	}()
-
-	t.Print(f)
 
 	text, err := readPlain(os.Args[2])
 	if err != nil {
@@ -114,12 +108,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	ok, first, second := checkNaive(t, dict, text)
-	if ok {
-		fmt.Printf("%t\n", ok)
-	} else {
-		fmt.Printf("%t\n%s\n====\n%s\n=====\n", ok, first, second)
-	}
-	// t.StreamReplace(strings.NewReader(text), os.Stdout)
-
+	t.StreamReplace(strings.NewReader(text), os.Stdout)
 }
