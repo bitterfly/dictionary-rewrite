@@ -77,7 +77,7 @@ func chanFromFile(filename string) (chan transducer.DictionaryRecord, error) {
 
 		var dicWords []string
 		for scanner.Scan() {
-			if i%10000 == 0 {
+			if i%100000 == 0 {
 				log.Printf("%d ", i)
 			}
 			i++
