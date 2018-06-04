@@ -102,11 +102,15 @@ func main() {
 	}
 	t := transducer.NewTransducer(dictChan)
 
-	text, err := readPlain(os.Args[2])
-	if err != nil {
-		fmt.Printf("Could not read input text file")
-		os.Exit(1)
+	if len(os.Args) > 2 {
+		text, err := readPlain(os.Args[2])
+		if err != nil {
+			fmt.Printf("Could not read input text file")
+			os.Exit(1)
+		}
+		t.StreamReplace(strings.NewReader(text), os.Stdout)
+	} else {
+		t.StreamReplace(os.Stdin, os.Stdout)
 	}
 
-	t.StreamReplace(strings.NewReader(text), os.Stdout)
 }
