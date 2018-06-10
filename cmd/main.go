@@ -58,7 +58,7 @@ func chanFromDict(dict map[string]string) chan transducer.DictionaryRecord {
 }
 
 func chanFromFile(filename string) (chan transducer.DictionaryRecord, error) {
-	dictChan := make(chan transducer.DictionaryRecord)
+	dictChan := make(chan transducer.DictionaryRecord, 2000)
 	var err error
 	go func() {
 		f, err := os.Open(filename)
