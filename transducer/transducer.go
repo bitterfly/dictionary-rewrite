@@ -2,28 +2,30 @@ package transducer
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"time"
 )
 
-// func (t *Transducer) Print(writer io.Writer) {
-// 	fmt.Fprintf(writer, "digraph transducer {\n")
-// 	t.print(t.q0, writer)
-// 	fmt.Fprintf(writer, "}\n")
-// }
+func (t *Transducer) Print(writer io.Writer) {
+	fmt.Fprintf(writer, "digraph transducer {\n")
+	for i, n := range t.states {
+		t.print(i, n, writer)
+	}
+	fmt.Fprintf(writer, "}\n")
+}
 
-// func (t *Transducer) print(n *Node, writer io.Writer) {
-// 	fmt.Fprintf(writer, "  \"%p\" [label=\"\"];\n", n)
+func (t *Transducer) print(i int, n Node, writer io.Writer) {
+	fmt.Fprintf(writer, "  \"%d\" [label=\"\"];\n", i)
 
-// 	for letter, dest := range n.transitions {
-// 		fmt.Fprintf(writer, " \"%p\" -> \"%p\" [label=\"%c\"];\n", n, dest, letter)
-// 		if n.fTransition != nil {
-// 			fmt.Fprintf(writer, " \"%p\" -> \"%p\" [label=\"%s\",color=red];\n", n, n.fTransition.state, t.getOutputString(n.fTransition.failWord))
-// 		}
-// 		t.print(dest, writer)
-// 	}
-// }
+	for letter, dest := range n.transitions {
+		fmt.Fprintf(writer, " \"%d\" -> \"%d\" [label=\"%c\"];\n", i, dest, letter)
+		if n.fTransition != nil {
+			fmt.Fprintf(writer, " \"%d\" -> \"%d\" [label=\"%s\",color=red];\n", i, n.fTransition.state, t.getOutputString(n.fTransition.failWord))
+		}
+	}
+}
 
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
@@ -144,6 +146,7 @@ func (t *Transducer) getOutputString(s int32) string {
 	return t.getOutputString(os.s1) + t.getOutputString(os.s2)
 }
 
+// returns the index of the the fail state and the index of the fail word
 func (t *Transducer) walkTransitions(n int32, letter rune) (int32, int32) {
 	if destination, ok := t.states[n].transitions[letter]; ok {
 		// return epsilon outputString
