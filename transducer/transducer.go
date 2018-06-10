@@ -82,6 +82,9 @@ type Transducer struct {
 	outputStrings []OutputString
 }
 
+type bla struct {
+}
+
 func (t *Transducer) newOutputStringEpsilon() int32 {
 	return 0
 }
