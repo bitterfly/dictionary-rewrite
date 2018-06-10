@@ -66,7 +66,7 @@ func (t *Transducer) processWord(n int32, word []rune) int32 {
 
 	if _, ok := t.states[n].transitions[word[0]]; !ok {
 		newNodeIndex := t.NewNode()
-		t.states[newNodeIndex].transitions[word[0]] = n
+		t.states[n].transitions[word[0]] = newNodeIndex
 		return t.processWord(newNodeIndex, word[1:])
 	} else {
 		return t.processWord(t.states[n].transitions[word[0]], word[1:])
@@ -170,7 +170,7 @@ type DictionaryRecord struct {
 // NewTransducer returns a fail transducer from the given dictionary
 func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	defer timeTrack(time.Now(), "NewTransducer")
-	t := &Transducer{states: make([]Node, 1), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1)}
+	t := &Transducer{states: make([]Node, 0, 1), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1)}
 	t.NewNode()
 
 	//Make the blank output string to be the first
