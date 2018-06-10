@@ -18,24 +18,15 @@ type FTransition struct {
 	state    int32
 }
 
-// OutputString describes the following:
-// if s1 == -1 and s2 == -1 -> OutputString encodes epsilon
-// if s1 != -1 and s2 == -1 -> OutputString encodes an unicode in s1
-// if s1 == -1 and s2 != -1 -> OutputString encodes an index of a string in outputs array
-// if s1 != -1 and s2 != -1 -> OutputString encodes two other output strings
-type OutputString struct {
-	s1, s2 int32
-}
-
 // Node is the node in the ftransducer
 type Node struct {
 	output      int32
-	fTransition *FTransition
+	fTransition FTransition
 	firstRune   rune
 }
 
-func (t *Transducer) NewNode() int32 {
-	t.states = append(t.states, Node{output: -1, fTransition: nil})
+func (t *Transducer) newNode() int32 {
+	t.states = append(t.states, Node{output: -1})
 	return int32(len(t.states) - 1)
 }
 
@@ -45,7 +36,7 @@ func (t *Transducer) transitionBetween(from, to int32, letter rune) {
 
 	t.states[to].firstRune = 0
 	t.states[from].firstRune = letter
-	t.transitions[TransitionKey{from, letter}] = TransitionDestination{destState: to, nextRune: oldRune}
+	t.transitions[transitionKey{from, letter}] = transitionDestination{destState: to, nextRune: oldRune}
 }
 
 func (t *Transducer) processWord(n int32, word []rune) int32 {
@@ -53,13 +44,13 @@ func (t *Transducer) processWord(n int32, word []rune) int32 {
 		return n
 	}
 
-	if _, ok := t.transitions[TransitionKey{n, word[0]}]; !ok {
-		newNodeIndex := t.NewNode()
+	if _, ok := t.transitions[transitionKey{n, word[0]}]; !ok {
+		newNodeIndex := t.newNode()
 		t.transitionBetween(n, newNodeIndex, word[0])
 		return t.processWord(newNodeIndex, word[1:])
-	} else {
-		return t.processWord(t.transitions[TransitionKey{n, word[0]}].destState, word[1:])
 	}
+
+	return t.processWord(t.transitions[transitionKey{n, word[0]}].destState, word[1:])
 }
 
 // Transducer represents the fail transducer which is built in two stages
@@ -68,23 +59,23 @@ func (t *Transducer) processWord(n int32, word []rune) int32 {
 type Transducer struct {
 	states        []Node
 	outputs       []string
-	transitions   map[TransitionKey]TransitionDestination
+	transitions   map[transitionKey]transitionDestination
 	outputStrings []OutputString
 }
 
-type TransitionKey struct {
+type transitionKey struct {
 	fromState int32
 	letter    rune
 }
 
-type TransitionDestination struct {
+type transitionDestination struct {
 	destState int32
 	nextRune  rune
 }
 
 // returns the index of the the fail state and the index of the fail word
 func (t *Transducer) deltaFGamma(n int32, letter rune) (int32, int32) {
-	if destination, ok := t.transitions[TransitionKey{n, letter}]; ok {
+	if destination, ok := t.transitions[transitionKey{n, letter}]; ok {
 		// return epsilon outputString
 		return destination.destState, 0
 	}
@@ -106,8 +97,8 @@ type DictionaryRecord struct {
 // NewTransducer returns a fail transducer from the given dictionary
 func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	defer timeTrack(time.Now(), "NewTransducer")
-	t := &Transducer{states: make([]Node, 0, 1), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1), transitions: make(map[TransitionKey]TransitionDestination)}
-	t.NewNode()
+	t := &Transducer{states: make([]Node, 0, 1), outputs: make([]string, 0, 1), outputStrings: make([]OutputString, 1), transitions: make(map[transitionKey]transitionDestination)}
+	t.newNode()
 
 	//Make the blank output string to be the first
 	t.outputStrings[0] = OutputString{s1: -1, s2: -1}
@@ -121,18 +112,18 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	// Put all reachable states from q1 in the queue and make their failtransition q0
 	queue := make([]int32, 0, 1)
 
-	currentKey := TransitionKey{fromState: 0, letter: t.states[0].firstRune}
+	currentKey := transitionKey{fromState: 0, letter: t.states[0].firstRune}
 	for currentKey.letter != 0 {
 		node := t.transitions[currentKey].destState
 		nextLetter := t.transitions[currentKey].nextRune
 		if t.states[node].output != -1 {
-			t.states[node].fTransition = &FTransition{state: 0, failWord: t.states[node].output}
+			t.states[node].fTransition.state = 0
+			t.states[node].fTransition.failWord = t.states[node].output
 			// fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(node.output))
 
 		} else {
-			t.states[node].fTransition = &FTransition{state: 0, failWord: t.newOutputStringFromChar(currentKey.letter)}
-			// fmt.Printf("Adding fail transition from %p to %p with %c\n", node, t.q0, letter)
-
+			t.states[node].fTransition.state = 0
+			t.states[node].fTransition.failWord = t.newOutputStringFromChar(currentKey.letter)
 		}
 
 		queue = append(queue, node)
@@ -150,10 +141,12 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 			destination := t.transitions[currentKey].destState
 			nextLetter := t.transitions[currentKey].nextRune
 			if t.states[destination].output != -1 {
-				t.states[destination].fTransition = &FTransition{state: 0, failWord: t.states[destination].output}
+				t.states[destination].fTransition.state = 0
+				t.states[destination].fTransition.failWord = t.states[destination].output
 			} else {
 				fstate, fword := t.deltaFGamma(t.states[currentKey.fromState].fTransition.state, currentKey.letter)
-				t.states[destination].fTransition = &FTransition{state: fstate, failWord: t.newOutputStringConcatenate(t.states[currentKey.fromState].fTransition.failWord, fword)}
+				t.states[destination].fTransition.state = fstate
+				t.states[destination].fTransition.failWord = t.newOutputStringConcatenate(t.states[currentKey.fromState].fTransition.failWord, fword)
 			}
 			queue = append(queue, destination)
 			currentKey.letter = nextLetter
@@ -188,7 +181,7 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 			}
 		}
 
-		if destination, ok := t.transitions[TransitionKey{node, letter}]; ok {
+		if destination, ok := t.transitions[transitionKey{node, letter}]; ok {
 			node = destination.destState
 			continue
 		}

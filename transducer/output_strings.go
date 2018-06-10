@@ -2,7 +2,15 @@ package transducer
 
 import "bufio"
 
-//==================OutputString====================================
+//=================OutputString====================================
+// OutputString describes the following:
+// if s1 == -1 and s2 == -1 -> OutputString encodes epsilon
+// if s1 != -1 and s2 == -1 -> OutputString encodes an unicode in s1
+// if s1 == -1 and s2 != -1 -> OutputString encodes an index of a string in outputs array
+// if s1 != -1 and s2 != -1 -> OutputString encodes two other output strings
+type OutputString struct {
+	s1, s2 int32
+}
 
 func (t *Transducer) newOutputStringEpsilon() int32 {
 	return 0

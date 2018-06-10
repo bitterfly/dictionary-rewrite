@@ -9,7 +9,7 @@ func (t *Transducer) Print(writer io.Writer) {
 	fmt.Fprintf(writer, "digraph transducer {\n")
 	for i, s := range t.states {
 		fmt.Fprintf(writer, "  %d [label=\"\"];\n", i)
-		if s.fTransition != nil {
+		if i == 0 {
 			fmt.Fprintf(writer, " %d -> %d [label=\"%s\",color=red];\n", i, s.fTransition.state, t.getOutputString(s.fTransition.failWord))
 		}
 	}
