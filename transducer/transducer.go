@@ -106,10 +106,9 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	for record := range dictionary {
 		lastStateIndex := t.processWord(0, []rune(record.Input))
 		t.states[lastStateIndex].output = t.newOutputStringFromString(record.Output)
-		// fmt.Printf("Appending output: %s\n", t.getOutputString(lastState.output))
 	}
 
-	// Put all reachable states from q1 in the queue and make their failtransition q0
+	// Put all reachable states from q0 in the queue and make their failTransition q0
 	queue := make([]int32, 0, 1)
 
 	currentKey := transitionKey{fromState: 0, letter: t.states[0].firstRune}
@@ -129,8 +128,8 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 		queue = append(queue, node)
 		currentKey.letter = nextLetter
 	}
-	// BFS to construct fail transitions"
 
+	// BFS to construct fail transitions"
 	for len(queue) > 0 {
 		currentKey.fromState = queue[0]
 
@@ -187,7 +186,6 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 		}
 
 		if node == 0 {
-			// fmt.Printf("Failing with %c from q0 ->|%c|\n", letter, letter)
 			_, err = outputBuf.WriteRune(letter)
 			if err != nil {
 				return err
