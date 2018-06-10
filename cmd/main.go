@@ -113,6 +113,6 @@ func main() {
 		t.StreamReplace(os.Stdin, os.Stdout)
 	}
 
-	t.Print(os.Stdout)
+	// t.Print(os.Stdout)
 
 }

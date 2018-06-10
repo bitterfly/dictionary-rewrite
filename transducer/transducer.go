@@ -59,6 +59,7 @@ func (t *Transducer) NewNode() int32 {
 }
 
 func (t *Transducer) transitionBetween(from, to int32, letter rune) {
+
 	oldRune := t.states[from].firstRune
 
 	t.states[to].firstRune = 0
@@ -203,10 +204,8 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 	// Put all reachable states from q1 in the queue and make their failtransition q0
 	queue := make([]int32, 0, 1)
 
-	letter := t.states[0].firstRune
-
-	for letter != 0 {
-		currentKey := TransitionKey{fromState: 0, letter: letter}
+	currentKey := TransitionKey{fromState: 0, letter: t.states[0].firstRune}
+	for currentKey.letter != 0 {
 		node := t.transitions[currentKey].destState
 		nextLetter := t.transitions[currentKey].nextRune
 		if t.states[node].output != -1 {
@@ -214,26 +213,25 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 			// fmt.Printf("Adding fail transition from %p to %p with %s\n", node, t.q0, t.getOutputString(node.output))
 
 		} else {
-			t.states[node].fTransition = &FTransition{state: 0, failWord: t.newOutputStringFromChar(letter)}
+			t.states[node].fTransition = &FTransition{state: 0, failWord: t.newOutputStringFromChar(currentKey.letter)}
 			// fmt.Printf("Adding fail transition from %p to %p with %c\n", node, t.q0, letter)
 
 		}
 
 		queue = append(queue, node)
-		letter = nextLetter
+		currentKey.letter = nextLetter
 	}
 	// BFS to construct fail transitions"
+
 	for len(queue) > 0 {
-		current := queue[0]
+		currentKey.fromState = queue[0]
 
 		queue = queue[1:]
 
-		letter = t.states[current].firstRune
-		currentKey := TransitionKey{fromState: current, letter: letter}
-		for letter != 0 {
+		currentKey.letter = t.states[currentKey.fromState].firstRune
+		for currentKey.letter != 0 {
 			destination := t.transitions[currentKey].destState
 			nextLetter := t.transitions[currentKey].nextRune
-			fmt.Printf("curr: %c next: %c\n", letter, nextLetter)
 			// fmt.Printf(fmt.Sprintf("Looking up transition (%p, %c)\n", destination, transition.letter))
 			if t.states[destination].output != -1 {
 				// fmt.Printf(fmt.Sprintf("Putting failword: %s\n", *(destination.output)))
@@ -241,15 +239,15 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 			} else {
 				// fmt.Printf("Walking back from %p with letter %c\n", current.fTransition.state, letter)
 
-				fstate, fword := t.walkTransitions(t.states[current].fTransition.state, letter)
+				fstate, fword := t.walkTransitions(t.states[currentKey.fromState].fTransition.state, currentKey.letter)
 
 				// fmt.Printf("This is state %p with word %s\n", fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
 				// fmt.Printf("Adding fail transition from %p to %p with %s\n", destination, fstate, t.getOutputString(current.fTransition.failWord) + t.getOutputString(fword))
 
-				t.states[destination].fTransition = &FTransition{state: fstate, failWord: t.newOutputStringConcatenate(t.states[current].fTransition.failWord, fword)}
+				t.states[destination].fTransition = &FTransition{state: fstate, failWord: t.newOutputStringConcatenate(t.states[currentKey.fromState].fTransition.failWord, fword)}
 			}
 			queue = append(queue, destination)
-			letter = nextLetter
+			currentKey.letter = nextLetter
 		}
 	}
 
