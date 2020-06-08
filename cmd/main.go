@@ -113,6 +113,8 @@ func main() {
 		t.StreamReplace(os.Stdin, os.Stdout)
 	}
 
+	t.PrintStates()
+
 	// t.Print(os.Stdout)
 
 }

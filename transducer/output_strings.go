@@ -40,13 +40,11 @@ func (t *Transducer) processOutputString(s int32, output *bufio.Writer) error {
 	}
 
 	if os.s1 == -1 && os.s2 != -1 {
-		// fmt.Printf("Writing output:|%s|\n", t.outputs[os.s2])
 		output.WriteString(t.outputs[os.s2])
 		return nil
 	}
 
 	if os.s1 != -1 && os.s2 == -1 {
-		// fmt.Printf("Writing output:|%c|\n", rune(os.s1))
 		output.WriteRune(rune(os.s1))
 		return nil
 	}

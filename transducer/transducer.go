@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+func (t *Transducer) PrintStates() {
+	log.Printf("States: %d, Transitions: %d\n", len(t.states), len(t.transitions))
+}
+
 func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Printf("%s took %s\n", name, elapsed)
@@ -74,7 +78,7 @@ type transitionDestination struct {
 }
 
 // returns the index of the the fail state and the index of the fail word
-func (t *Transducer) deltaFGamma(n int32, letter rune) (int32, int32) {
+func (t *Transducer) deltaLambdaF(n int32, letter rune) (int32, int32) {
 	if destination, ok := t.transitions[transitionKey{n, letter}]; ok {
 		// return epsilon outputString
 		return destination.destState, 0
@@ -83,8 +87,7 @@ func (t *Transducer) deltaFGamma(n int32, letter rune) (int32, int32) {
 	if n == 0 {
 		return n, t.newOutputStringFromChar(letter)
 	}
-
-	fstate, fword := t.deltaFGamma(t.states[n].fTransition.state, letter)
+	fstate, fword := t.deltaLambdaF(t.states[n].fTransition.state, letter)
 
 	return fstate, t.newOutputStringConcatenate(t.states[n].fTransition.failWord, fword)
 }
@@ -143,7 +146,7 @@ func NewTransducer(dictionary chan DictionaryRecord) *Transducer {
 				t.states[destination].fTransition.state = 0
 				t.states[destination].fTransition.failWord = t.states[destination].output
 			} else {
-				fstate, fword := t.deltaFGamma(t.states[currentKey.fromState].fTransition.state, currentKey.letter)
+				fstate, fword := t.deltaLambdaF(t.states[currentKey.fromState].fTransition.state, currentKey.letter)
 				t.states[destination].fTransition.state = fstate
 				t.states[destination].fTransition.failWord = t.newOutputStringConcatenate(t.states[currentKey.fromState].fTransition.failWord, fword)
 			}
@@ -169,9 +172,6 @@ func (t *Transducer) StreamReplace(input io.Reader, output io.Writer) error {
 
 	for {
 		letter, _, err := inputBuf.ReadRune()
-		inputBuf.UnreadRune()
-		letter, _, err = inputBuf.ReadRune()
-		// fmt.Printf("Trying letter: %c\n", letter)
 		if err != nil {
 			if err == io.EOF {
 				break
