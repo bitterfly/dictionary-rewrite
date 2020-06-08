@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"local/ftransducer/transducer"
+	"github.com/bitterfly/ftransducer/transducer"
 	"log"
 	"os"
 	"strings"
