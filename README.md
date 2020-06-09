@@ -1,8 +1,8 @@
 # Brief
 
-This project is for applications of automata  course at FMI(Faculty of Mathematics and Informatics) written in GO
+This project is for applications of automata  course at FMI(Faculty of Mathematics and Informatics) written in GO.
 
-It builds an failure transducer which, given a dictionary D, represents Σ*D. Then it implements text rewriting using the leftmost long strategy, i.e.
+It builds a failure transducer which, given a dictionary D, represents Σ*D. Then it implements text rewriting using the leftmost long strategy, i.e.
 given a text it rewrites every occurence of a dictionary word in the texts with its image.
 
 The implementation follows the description in: https://www.aclweb.org/anthology/W17-4001.pdf
