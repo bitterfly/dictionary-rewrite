@@ -11,6 +11,7 @@ The implementation follows the description in: https://www.aclweb.org/anthology/
 ## Requirements
 
 An installed version of Go (at least 1.14).
+
 Mind that large dictionaries take a lot of RAM (a.k.a. 25GB for 1.4GB dictionary ~ 18,000,000 words)
 
 ## Instalation
@@ -24,6 +25,6 @@ Mind that large dictionaries take a lot of RAM (a.k.a. 25GB for 1.4GB dictionary
     
 where <dictionary-file> is in the format
 
-<non-empty-string>\t<string>
+    <non-empty-string>\t<string>
 
 and <text-file> is any UTF-8 text file
