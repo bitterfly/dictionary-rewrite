@@ -104,6 +104,20 @@ func getDictionary(filename string) ([]transducer.DictionaryRecord, int, error) 
 	return dictionary, dictSize, nil
 }
 
+func (t *Trie) deltaDefined(state int32, letter rune) bool {
+	_, ok := t.transitions[transitionKey{state, letter}]
+	return ok
+}
+
+func (t *Trie) deltaDestination(state int32, letter rune) int32 {
+	destination, _ := t.transitions[transitionKey{state, letter}]
+	return destination
+}
+
+func (t *Trie) isFinal(state int32) bool {
+	return t.finalStates[state] == 1
+}
+
 func (t *Trie) replace(text []rune, output io.Writer) {
 	defer timeTrack(time.Now(), "StreamReplace")
 
@@ -111,40 +125,31 @@ func (t *Trie) replace(text []rune, output io.Writer) {
 
 	defer outputBuf.Flush()
 
-	processedPosition := 0
-	for processedPosition < len(text) {
-
-		letter := text[processedPosition]
-
-		currentPosition := processedPosition
-		currentNode := int32(0)
+	i := 0
+	for i < len(text) {
+		state := int32(0)
 		wordLen := 0
 		wordOutput := ""
-		currentWordLen := 0
-		for currentPosition < len(text) {
 
-			destination, ok := t.transitions[transitionKey{currentNode, text[currentPosition]}]
-			if !ok {
+		for j := i; j < len(text); j++ {
+			if !t.deltaDefined(state, text[j]) {
 				break
 			}
 
-			currentNode = destination
-			currentWordLen++
+			state = t.deltaDestination(state, text[j])
 
-			if t.finalStates[currentNode] == 1 {
-				wordLen = currentWordLen
-				wordOutput = t.outputs[currentNode]
+			if t.isFinal(state) {
+				wordLen = j - i + 1
+				wordOutput = t.outputs[state]
 			}
-
-			currentPosition++
 		}
 
 		if wordLen != 0 {
 			outputBuf.WriteString(wordOutput)
-			processedPosition += wordLen
+			i += wordLen
 		} else {
-			outputBuf.WriteRune(letter)
-			processedPosition++
+			outputBuf.WriteRune(text[i])
+			i++
 		}
 	}
 
