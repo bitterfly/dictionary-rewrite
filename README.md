@@ -23,8 +23,8 @@ Mind that large dictionaries take a lot of RAM (a.k.a. 25GB for 1.4GB dictionary
 
     $ ftransducer_cmd <dictionary-file> <text-file>
     
-where <dictionary-file> is in the format
+where `<dictionary-file>` is in the format
 
     <non-empty-string>\t<string>
 
-and <text-file> is any UTF-8 text file
+and `<text-file>` is any UTF-8 text file
