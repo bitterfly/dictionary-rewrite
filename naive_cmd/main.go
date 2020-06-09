@@ -2,16 +2,16 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"github.com/bitterfly/ftransducer/transducer"
 	"log"
-	"time"
 	"os"
 	"strings"
-)
+	"time"
 
+	"github.com/bitterfly/ftransducer/transducer"
+)
 
 type transitionKey struct {
 	fromState int32
@@ -19,9 +19,10 @@ type transitionKey struct {
 }
 
 type Trie struct {
-	outputs         []string
-	transitions     map[transitionKey]int32
-	num_states	int32
+	outputs     []string
+	finalStates []int32
+	transitions map[transitionKey]int32
+	numStates   int32
 }
 
 func (t *Trie) processWord(n int32, word []rune) int32 {
@@ -30,8 +31,8 @@ func (t *Trie) processWord(n int32, word []rune) int32 {
 	}
 
 	if _, ok := t.transitions[transitionKey{n, word[0]}]; !ok {
-		newNodeIndex := t.num_states
-		t.num_states++
+		newNodeIndex := t.numStates
+		t.numStates++
 		t.transitions[transitionKey{n, word[0]}] = newNodeIndex
 		return t.processWord(newNodeIndex, word[1:])
 	}
@@ -44,23 +45,22 @@ func timeTrack(start time.Time, name string) {
 	log.Printf("%s took %s\n", name, elapsed)
 }
 
-func NewTrie(dictionary chan transducer.DictionaryRecord) *Trie {
-	defer timeTrack(time.Now(), "NewTransducer")
-	t := &Trie{outputs: make([]string, 0, 1), transitions: make(map[transitionKey]int32), num_states: 1}
-	t.outputs[0] = ""
+func NewTrie(dictionary []transducer.DictionaryRecord, dictSize int) *Trie {
+	defer timeTrack(time.Now(), "NewTrie")
+	t := &Trie{outputs: make([]string, dictSize+1), finalStates: make([]int32, dictSize+1), transitions: make(map[transitionKey]int32), numStates: 1}
 
-	for record := range dictionary {
+	for _, record := range dictionary {
 		lastStateIndex := t.processWord(0, []rune(record.Input))
+		t.finalStates[lastStateIndex] = 1
 		t.outputs[lastStateIndex] = record.Output
-
 	}
 	return t
 }
 
-func readPlain(filename string) (string, error) {
+func readPlain(filename string) ([]rune, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return "", err
+		return []rune{}, err
 	}
 	defer func() {
 		err = f.Close()
@@ -68,155 +68,96 @@ func readPlain(filename string) (string, error) {
 
 	text, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", err
+		return []rune{}, err
 	}
-	return string(text), nil
+	return []rune(string(text)), nil
 }
 
-func readJSON(filename string) (map[string]string, error) {
+func getDictionary(filename string) ([]transducer.DictionaryRecord, int, error) {
+	dictionary := make([]transducer.DictionaryRecord, 0, 1)
+	dictSize := 0
+
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
+
 	defer func() {
 		err = f.Close()
 	}()
 
-	decoder := json.NewDecoder(f)
-	var dict map[string]string
-	err = decoder.Decode(&dict)
-	if err != nil {
-		return nil, err
-	}
-	return dict, nil
-}
+	scanner := bufio.NewScanner(f)
+	scanner.Split(bufio.ScanLines)
 
-func chanFromDict(dict map[string]string) chan transducer.DictionaryRecord {
-	dictChan := make(chan transducer.DictionaryRecord)
-	go func() {
-		for k, v := range dict {
-			dictChan <- transducer.DictionaryRecord{Input: k, Output: v}
-		}
-		close(dictChan)
-	}()
+	var dicWords []string
+	for scanner.Scan() {
 
-	return dictChan
-}
-
-func chanFromFile(filename string) (chan transducer.DictionaryRecord, error) {
-	dictChan := make(chan transducer.DictionaryRecord, 2000)
-	var err error
-	go func() {
-		f, err := os.Open(filename)
-		if err != nil {
-			return
-		}
-
-		defer func() {
-			err = f.Close()
-		}()
-
-		scanner := bufio.NewScanner(f)
-		scanner.Split(bufio.ScanLines)
-
-		i := 0
-
-		var dicWords []string
-		for scanner.Scan() {
-			if i%100000 == 0 {
-				log.Printf("%d ", i)
-			}
-			i++
-			dicWords = strings.SplitN(scanner.Text(), "\t", 2)
-			dictChan <- transducer.DictionaryRecord{Input: dicWords[0], Output: dicWords[1]}
-		}
-		close(dictChan)
-	}()
-
-	if err != nil {
-		return nil, err
+		dicWords = strings.SplitN(scanner.Text(), "\t", 2)
+		dictSize += len(dicWords[0])
+		dictionary = append(dictionary, transducer.DictionaryRecord{Input: dicWords[0], Output: dicWords[1]})
 	}
 
-	return dictChan, nil
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return dictionary, dictSize, nil
 }
 
-func (t *Trie) StreamReplace(input io.Reader, output io.Writer) error {
+func (t *Trie) replace(text []rune, output io.Writer) {
 	defer timeTrack(time.Now(), "StreamReplace")
 
-	var err error
-	inputBuf := bufio.NewReader(input)
-	string text =  inputBuf.Text()
 	outputBuf := bufio.NewWriter(output)
 
 	defer outputBuf.Flush()
-	node := int32(0)
 
-	for {
-		letter, _, err := inputBuf.ReadRune()
-		if err != nil {
-			if err == io.EOF {
+	processedPosition := 0
+	for processedPosition < len(text) {
+
+		letter := text[processedPosition]
+
+		currentPosition := processedPosition
+		currentNode := int32(0)
+		wordLen := 0
+		wordOutput := ""
+		currentWordLen := 0
+		for currentPosition < len(text) {
+
+			destination, ok := t.transitions[transitionKey{currentNode, text[currentPosition]}]
+			if !ok {
 				break
-			} else {
-				return err
-			}
-		}
-
-		if destination, ok := t.transitions[transitionKey{node, letter}]; ok {
-			node = destination.destState
-			continue
-		}
-
-		if node == 0 {
-			_, err = outputBuf.WriteRune(letter)
-			if err != nil {
-				return err
 			}
 
-			continue
+			currentNode = destination
+			currentWordLen++
+
+			if t.finalStates[currentNode] == 1 {
+				wordLen = currentWordLen
+				wordOutput = t.outputs[currentNode]
+			}
+
+			currentPosition++
 		}
 
-		err = t.processOutputString(t.states[node].fTransition.failWord, outputBuf)
-		if err != nil {
-			return err
-		}
-
-		node = t.states[node].fTransition.state
-		err = inputBuf.UnreadRune()
-		// fmt.Printf("Unreading rune: %c\n", letter)
-		if err != nil {
-			return err
+		if wordLen != 0 {
+			outputBuf.WriteString(wordOutput)
+			processedPosition += wordLen
+		} else {
+			outputBuf.WriteRune(letter)
+			processedPosition++
 		}
 	}
 
-	err = t.followFTransitions(node, outputBuf)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-
 func main() {
-	dictChan, err := chanFromFile(os.Args[1])
+	dictionary, dictSize, err := getDictionary(os.Args[1])
 	if err != nil {
 		fmt.Printf("Error reading file.")
 		os.Exit(1)
 	}
-	t := NewTrie(dictChan)
-	fmt.Printf("%s\n", t.)
-//	if len(os.Args) > 2 {
-//		text, err := readPlain(os.Args[2])
-//		if err != nil {
-//			fmt.Printf("Could not read input text file")
-//			os.Exit(1)
-//		}
-//		t.StreamReplace(strings.NewReader(text), os.Stdout)
-//	} else {
-//		t.StreamReplace(os.Stdin, os.Stdout)
-//	}
-//
-//	t.PrintStates()
-//
-//	// t.Print(os.Stdout)
+	t := NewTrie(dictionary, dictSize)
 
+	text, _ := readPlain(os.Args[2])
+	t.replace(text, os.Stdout)
 }
