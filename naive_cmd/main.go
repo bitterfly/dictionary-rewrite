@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitterfly/ftransducer/transducer"
+	"github.com/bitterfly/dictionary-rewrite/transducer"
 )
 
 type transitionKey struct {

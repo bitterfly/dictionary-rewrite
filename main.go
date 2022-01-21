@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"github.com/bitterfly/ftransducer/transducer"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/bitterfly/dictionary-rewrite/transducer"
 )
 
 func readPlain(filename string) (string, error) {
